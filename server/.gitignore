@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.*
+uploads/driver-photos/*
+!uploads/driver-photos/.gitkeep
+*.log
+npm-debug.log*
+.DS_Store
+temp/
+*.tmp

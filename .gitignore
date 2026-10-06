@@ -1,0 +1,25 @@
+# Skipped documentation & local notes
+DEPLOY.md
+README.md
+SIM.md
+EXPLAIN.md
+temp/
+temp
+*.tmp
+
+# Environment & credentials
+.env
+.env.*
+!.env.example
+
+# Node dependencies & build artifacts
+node_modules/
+dist/
+
+# OS and Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+npm-debug.log*
