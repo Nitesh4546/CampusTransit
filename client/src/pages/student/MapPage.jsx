@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Bus, MapPin, Navigation, ChevronRight, Calendar, Wifi, WifiOff, Shield, AlertCircle } from 'lucide-react';
-import { routesApi } from '../../api/index.js';
+import { routesApi, stopsApi } from '../../api/index.js';
 import { useLiveBusStore } from '../../store/liveBusStore.js';
 import { useAnnouncementStore } from '../../store/announcementStore.js';
 import { useLiveBuses } from '../../hooks/useLiveBuses.js';
@@ -21,6 +21,7 @@ export default function MapPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [routes, setRoutes] = useState([]);
+  const [stops, setStops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRouteId, setSelectedRouteId] = useState(null);
   const [selectedStop, setSelectedStop] = useState(null);
@@ -44,9 +45,21 @@ export default function MapPage() {
   useLiveBuses(routeIds);
 
   useEffect(() => {
-    routesApi.list().then(res => {
+    Promise.all([
+      routesApi.list().catch((err) => {
+        console.error('Failed to load routes:', err);
+        return { data: [] };
+      }),
+      stopsApi.list().catch((err) => {
+        console.error('Failed to load stops:', err);
+        return { data: [] };
+      }),
+    ]).then(([routesRes, stopsRes]) => {
       const now = Date.now();
-      const allRoutes = res.data || [];
+      const allRoutes = routesRes.data || [];
+      const allStops = stopsRes.data || [];
+      setStops(allStops);
+
       const visibleRoutes = allRoutes.filter(route => {
         const mode = route.eventMode;
         if (!mode?.enabled) return true;
@@ -72,7 +85,7 @@ export default function MapPage() {
         }
       } else if (fStop) {
         const parentRoute = allRoutes.find(r =>
-          (r.stops || []).some(s => (s.stopId?._id || s.stopId || s._id) === fStop)
+          (r.stops || []).some(s => String(s.stopId?._id || s.stopId || s._id) === String(fStop))
         );
         if (parentRoute) {
           if (!visibleRoutes.some(r => r._id === parentRoute._id)) {
@@ -80,7 +93,14 @@ export default function MapPage() {
           }
           targetRouteToSelect = parentRoute._id;
         }
-        focusStop(fStop);
+
+        const stopDoc = allStops.find(s => String(s._id || s.id) === String(fStop));
+        if (stopDoc || parentRoute) {
+          if (stopDoc) setSelectedStop(stopDoc);
+          focusStop(fStop);
+        } else {
+          showToast('Stop not found');
+        }
       }
 
       setRoutes(visibleRoutes);
@@ -116,9 +136,9 @@ export default function MapPage() {
     };
   }, []);
 
-  // React to query parameter changes when routes are already loaded
+  // React to query parameter changes when routes/stops are already loaded
   useEffect(() => {
-    if (loading || routes.length === 0) return;
+    if (loading || (routes.length === 0 && stops.length === 0)) return;
     const fRoute = searchParams.get('focusRoute');
     const fStop = searchParams.get('focusStop');
     if (!fRoute && !fStop) return;
@@ -133,19 +153,25 @@ export default function MapPage() {
       }
     } else if (fStop) {
       const parentRoute = routes.find(r =>
-        (r.stops || []).some(s => (s.stopId?._id || s.stopId || s._id) === fStop)
+        (r.stops || []).some(s => String(s.stopId?._id || s.stopId || s._id) === String(fStop))
       );
       if (parentRoute) {
         setSelectedRouteId(parentRoute._id);
       }
-      focusStop(fStop);
+      const stopDoc = stops.find(s => String(s._id || s.id) === String(fStop));
+      if (stopDoc || parentRoute) {
+        if (stopDoc) setSelectedStop(stopDoc);
+        focusStop(fStop);
+      } else {
+        showToast('Stop not found');
+      }
     }
 
     const next = new URLSearchParams(searchParams);
     next.delete('focusRoute');
     next.delete('focusStop');
     setSearchParams(next, { replace: true, state: location.state });
-  }, [searchParams, loading, routes]);
+  }, [searchParams, loading, routes, stops]);
 
   const selectedRoute = routes.find(r => r._id === selectedRouteId);
   const selectedBuses = activeBuses.filter(b => b.routeId === selectedRouteId);
@@ -444,6 +470,7 @@ export default function MapPage() {
           {/* Interactive Leaflet Map */}
           <LiveMap
             routes={routes}
+            stops={stops}
             buses={activeBuses}
             selectedRouteId={selectedRouteId}
             flyTo={mapCenter}

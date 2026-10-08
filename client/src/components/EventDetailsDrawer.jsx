@@ -192,6 +192,7 @@ export default function EventDetailsDrawer({
             {venueCoords ? (
               <div className="relative rounded-2xl overflow-hidden border border-surface-200 dark:border-surface-700 shadow-soft-xs h-40 w-full z-0">
                 <MapContainer
+                  key={eventId}
                   center={venueCoords}
                   zoom={15}
                   scrollWheelZoom={false}
@@ -200,6 +201,7 @@ export default function EventDetailsDrawer({
                   doubleClickZoom={false}
                   touchZoom={false}
                   attributionControl={false}
+                  style={{ height: '100%', width: '100%' }}
                   className="h-full w-full"
                 >
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />

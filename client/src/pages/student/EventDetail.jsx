@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, MapPin, Clock, Bus, Radio, AlertCircle, ChevronRight } from 'lucide-react';
-import { eventsApi } from '../../api/index.js';
+import { eventsApi, stopsApi } from '../../api/index.js';
 import EventBadge from '../../components/EventBadge.jsx';
 import LiveMap from '../../components/map/LiveMap.jsx';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
@@ -19,6 +19,7 @@ export default function EventDetail() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [eventData, setEventData] = useState(null);
+  const [eventStops, setEventStops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [shuttleInfo, setShuttleInfo] = useState(null);
@@ -37,9 +38,18 @@ export default function EventDetail() {
   useLiveBuses(eventRouteIds);
 
   useEffect(() => {
-    eventsApi.get(id)
-      .then(res => {
+    Promise.all([
+      eventsApi.get(id),
+      stopsApi.list().catch(() => ({ data: [] })),
+    ])
+      .then(([res, stopsRes]) => {
         setEventData(res.data);
+        const allStops = stopsRes.data || [];
+        const related = allStops.filter(s =>
+          String(s.eventId?._id || s.eventId) === String(id)
+        );
+        setEventStops(related);
+
         const routes = res.data?.routes || [];
         const fRoute = searchParams.get('focusRoute');
         const fStop = searchParams.get('focusStop');
@@ -55,7 +65,7 @@ export default function EventDetail() {
           }
         } else if (fStop) {
           const parentRoute = routes.find(r =>
-            (r.stops || []).some(s => (s.stopId?._id || s.stopId || s._id) === fStop)
+            (r.stops || []).some(s => String(s.stopId?._id || s.stopId || s._id) === String(fStop))
           );
           if (parentRoute) {
             targetRouteToSelect = parentRoute._id;
@@ -153,8 +163,9 @@ export default function EventDetail() {
   const liveBuses = Object.values(buses).filter(bus => eventRouteIds.includes(bus.routeId));
   const venueCoords = event.venueLocation?.coordinates ? [event.venueLocation.coordinates[1], event.venueLocation.coordinates[0]] : null;
 
-  // Flatten all stops from event routes
-  const stops = routes.flatMap(r => r.stops?.map(s => s.stopId || s) || []).filter(Boolean);
+  // Flatten all stops from event routes plus standalone event stops
+  const routeStops = routes.flatMap(r => r.stops?.map(s => s.stopId || s) || []).filter(Boolean);
+  const stops = [...eventStops, ...routeStops];
 
   return (
     <div className="h-dvh flex flex-col bg-surface-50 dark:bg-[#1f1f1f] text-surface-900 dark:text-surface-100 font-sans overflow-hidden transition-colors duration-150">

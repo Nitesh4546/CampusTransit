@@ -90,12 +90,12 @@ function MapFocusController({ routes = [], stops = [], markerRefs }) {
       }
     } else if (target.type === 'stop') {
       // Look up stop across explicit stops array and nested route stops
-      let stopFound = stops.find((s) => (s._id || s.id) === target.id);
+      let stopFound = stops.find((s) => String(s._id || s.id) === String(target.id));
       if (!stopFound) {
         for (const route of routes) {
           for (const s of route.stops || []) {
             const stopDoc = s.stopId || s;
-            if ((stopDoc._id || stopDoc.id) === target.id) {
+            if (String(stopDoc._id || stopDoc.id) === String(target.id)) {
               stopFound = stopDoc;
               break;
             }
@@ -111,14 +111,15 @@ function MapFocusController({ routes = [], stops = [], markerRefs }) {
 
       if (stopFound) {
         let lat, lng;
-        if (stopFound.location?.coordinates) {
+        if (stopFound.location?.coordinates && stopFound.location.coordinates.length >= 2) {
           [lng, lat] = stopFound.location.coordinates;
         } else if (stopFound.lat != null && stopFound.lng != null) {
-          lat = stopFound.lat;
-          lng = stopFound.lng;
+          lat = Number(stopFound.lat);
+          lng = Number(stopFound.lng);
         }
 
-        if (lat != null && lng != null) {
+        if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
+          const stopIdToFocus = String(target.id);
           const applyStopFocus = () => {
             if (prefersReducedMotion) {
               map.setView([lat, lng], 17, { animate: false });
@@ -126,13 +127,15 @@ function MapFocusController({ routes = [], stops = [], markerRefs }) {
               map.flyTo([lat, lng], 17, { duration: 0.8 });
             }
 
-            // Open marker popup after transition
-            const marker = markerRefs.current?.get(target.id);
-            if (marker) {
-              setTimeout(() => {
+            // Open marker popup after transition (reliably handles async DOM / ref mount)
+            const triggerPopup = () => {
+              const marker = markerRefs.current?.get(stopIdToFocus);
+              if (marker && !marker.isPopupOpen?.()) {
                 marker.openPopup();
-              }, prefersReducedMotion ? 50 : 800);
-            }
+              }
+            };
+            setTimeout(triggerPopup, prefersReducedMotion ? 50 : 300);
+            setTimeout(triggerPopup, prefersReducedMotion ? 100 : 850);
             clearTarget();
           };
 
@@ -168,8 +171,8 @@ export default function LiveMap({
   // Standalone stops
   stops.forEach((s) => {
     const id = s._id || s.id;
-    if (id && !seenStopIds.has(id)) {
-      seenStopIds.add(id);
+    if (id && !seenStopIds.has(String(id))) {
+      seenStopIds.add(String(id));
       allStops.push(s);
     }
   });
@@ -179,8 +182,8 @@ export default function LiveMap({
     (route.stops || []).forEach((stop) => {
       const stopDoc = stop.stopId || stop;
       const id = stopDoc?._id || stopDoc?.id;
-      if (id && !seenStopIds.has(id)) {
-        seenStopIds.add(id);
+      if (id && !seenStopIds.has(String(id))) {
+        seenStopIds.add(String(id));
         allStops.push(stopDoc);
       }
     });
@@ -215,9 +218,16 @@ export default function LiveMap({
 
       {/* Stop markers */}
       {allStops.map((stopDoc) => {
-        if (!stopDoc?.location?.coordinates) return null;
-        const [lng, lat] = stopDoc.location.coordinates;
-        const id = stopDoc._id || stopDoc.id;
+        let lat, lng;
+        if (stopDoc?.location?.coordinates && stopDoc.location.coordinates.length >= 2) {
+          [lng, lat] = stopDoc.location.coordinates;
+        } else if (stopDoc?.lat != null && stopDoc?.lng != null) {
+          lat = Number(stopDoc.lat);
+          lng = Number(stopDoc.lng);
+        }
+        if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return null;
+
+        const id = String(stopDoc._id || stopDoc.id);
 
         return (
           <StopMarker

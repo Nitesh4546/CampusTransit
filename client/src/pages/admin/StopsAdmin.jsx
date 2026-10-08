@@ -14,24 +14,50 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { stopsApi, eventsApi } from '../../api/index.js';
 import LoadingSpinner from '../../components/ui/LoadingSpinner.jsx';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { mapLink } from '../../utils/mapLinks.js';
 
 function LocationPicker({ position, onChange }) {
+  const map = useMap();
+
+  useEffect(() => {
+    // Invalidate size after modal renders to ensure Leaflet tiles load properly
+    const timer1 = setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
+    const timer2 = setTimeout(() => {
+      map.invalidateSize();
+    }, 350);
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, [map]);
+
+  useEffect(() => {
+    if (position && !isNaN(position[0]) && !isNaN(position[1])) {
+      const current = map.getCenter();
+      if (Math.abs(current.lat - position[0]) > 0.0001 || Math.abs(current.lng - position[1]) > 0.0001) {
+        map.setView(position, map.getZoom(), { animate: true });
+      }
+    }
+  }, [position?.[0], position?.[1], map]);
+
   useMapEvents({
     click(e) {
-      onChange([e.latlng.lat, e.latlng.lng]);
+      onChange([Number(e.latlng.lat.toFixed(6)), Number(e.latlng.lng.toFixed(6))]);
     },
   });
 
-  if (!position) return null;
+  if (!position || isNaN(position[0]) || isNaN(position[1])) return null;
 
   const pinIcon = L.divIcon({
     className: 'custom-pin-icon',
-    html: `<div style="background-color: #1a73e8; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(26,115,232,0.6);"></div>`,
-    iconSize: [16, 16],
-    iconAnchor: [8, 8],
+    html: `<div style="background-color: #1a73e8; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(26,115,232,0.65); cursor: pointer;"></div>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
   });
 
   return <Marker position={position} icon={pinIcon} />;
@@ -79,11 +105,13 @@ export default function StopsAdmin() {
 
   const openCreateModal = () => {
     setEditingStop(null);
+    const defaultLat = stops[0]?.location?.coordinates ? stops[0].location.coordinates[1] : 12.9716;
+    const defaultLng = stops[0]?.location?.coordinates ? stops[0].location.coordinates[0] : 77.5800;
     setFormData({
       name: '',
       code: `STP-${Math.floor(100 + Math.random() * 900)}`,
-      lat: stops[0]?.location?.coordinates ? stops[0].location.coordinates[1] : 28.6139,
-      lng: stops[0]?.location?.coordinates ? stops[0].location.coordinates[0] : 77.2090,
+      lat: defaultLat,
+      lng: defaultLng,
       isEventStop: false,
       eventId: '',
     });
@@ -95,8 +123,8 @@ export default function StopsAdmin() {
     setFormData({
       name: stop.name,
       code: stop.code,
-      lat: stop.location?.coordinates?.[1] || 28.6139,
-      lng: stop.location?.coordinates?.[0] || 77.2090,
+      lat: stop.location?.coordinates?.[1] || 12.9716,
+      lng: stop.location?.coordinates?.[0] || 77.5800,
       isEventStop: !!stop.isEventStop,
       eventId: stop.eventId || '',
     });
@@ -324,13 +352,16 @@ export default function StopsAdmin() {
                   <span>Click on map to pin coordinates:</span>
                   <span className="text-[11px] text-primary-600 dark:text-primary-400 font-semibold">Interactive Leaflet</span>
                 </div>
-                <div className="h-44 rounded-2xl overflow-hidden border border-surface-300 dark:border-surface-700 shadow-soft-xs">
+                <div className="h-48 rounded-2xl overflow-hidden border border-surface-300 dark:border-surface-700 shadow-soft-xs relative bg-surface-100 dark:bg-surface-800">
                   <MapContainer
-                    center={[formData.lat, formData.lng]}
+                    key={editingStop ? `edit-${editingStop._id}` : 'create-new-stop'}
+                    center={[formData.lat || 12.9716, formData.lng || 77.5800]}
                     zoom={15}
-                    className="w-full h-full"
+                    style={{ height: '100%', width: '100%', minHeight: '190px' }}
+                    zoomControl={true}
+                    attributionControl={false}
                   >
-                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" maxZoom={19} />
                     <LocationPicker
                       position={[formData.lat, formData.lng]}
                       onChange={([lat, lng]) => setFormData(prev => ({ ...prev, lat, lng }))}

@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useRef, useMemo } from 'react';
 import { Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -24,14 +24,51 @@ const StopMarker = forwardRef(function StopMarker(
   { lat, lng, name, code, isEvent = false, onClick },
   ref
 ) {
+  const isPinnedRef = useRef(false);
+  const closeTimerRef = useRef(null);
+
+  const eventHandlers = useMemo(
+    () => ({
+      mouseover: (e) => {
+        if (closeTimerRef.current) {
+          clearTimeout(closeTimerRef.current);
+          closeTimerRef.current = null;
+        }
+        e.target.openPopup();
+      },
+      mouseout: (e) => {
+        if (!isPinnedRef.current) {
+          closeTimerRef.current = setTimeout(() => {
+            if (!isPinnedRef.current) {
+              e.target.closePopup();
+            }
+          }, 150);
+        }
+      },
+      click: (e) => {
+        if (closeTimerRef.current) {
+          clearTimeout(closeTimerRef.current);
+          closeTimerRef.current = null;
+        }
+        isPinnedRef.current = true;
+        e.target.openPopup();
+        onClick?.(e);
+      },
+      popupclose: () => {
+        isPinnedRef.current = false;
+      },
+    }),
+    [onClick]
+  );
+
   return (
     <Marker
       ref={ref}
       position={[lat, lng]}
       icon={createStopIcon(isEvent)}
-      eventHandlers={{ click: onClick }}
+      eventHandlers={eventHandlers}
     >
-      <Popup>
+      <Popup autoPan={false}>
         <div className="text-sm p-1 font-sans">
           <div className="font-bold text-surface-900">{name}</div>
           {code && <div className="text-surface-600 text-xs mt-0.5">Stop Code: #{code}</div>}
