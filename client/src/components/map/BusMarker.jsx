@@ -21,16 +21,17 @@ function createBusIcon(heading = 0, color = '#1a73e8') {
   });
 }
 
-export default function BusMarker({ bus, onBusClick }) {
+export default function BusMarker({ bus, routeColor, onBusClick }) {
   const markerRef = useRef(null);
   const driver = useLiveBusStore((state) => state.drivers[bus.tripId]);
+  const markerColor = routeColor || '#1a73e8';
 
   useEffect(() => {
     if (markerRef.current) {
-      const icon = createBusIcon(bus.heading || 0);
+      const icon = createBusIcon(bus.heading || 0, markerColor);
       markerRef.current.setIcon(icon);
     }
-  }, [bus.heading]);
+  }, [bus.heading, markerColor]);
 
   if (!bus.lat || !bus.lng) return null;
 
@@ -40,7 +41,7 @@ export default function BusMarker({ bus, onBusClick }) {
     <Marker
       ref={markerRef}
       position={[bus.lat, bus.lng]}
-      icon={createBusIcon(bus.heading || 0)}
+      icon={createBusIcon(bus.heading || 0, markerColor)}
     >
       <Popup className="custom-popup">
         <div className="text-sm p-1.5 min-w-[220px] space-y-2 font-sans">

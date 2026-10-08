@@ -4,6 +4,7 @@ import { Route } from '../models/Route.js';
 import { verifyJWT, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { precomputeRouteDists } from '../services/eta.service.js';
+import { triggerRouteSimulation } from '../services/simulation.service.js';
 import { buildPolylineOSRM } from '../utils/geo.js';
 import { env } from '../config/env.js';
 
@@ -89,6 +90,14 @@ router.post('/', verifyJWT, requireRole('admin'), validate(routeSchema), async (
       }
     }
 
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('route:created', route);
+      triggerRouteSimulation(route._id, io).catch(err => {
+        console.warn('Simulation trigger error on route creation:', err.message);
+      });
+    }
+
     res.status(201).json(route);
   } catch (err) {
     next(err);
@@ -104,6 +113,15 @@ router.put('/:id', verifyJWT, requireRole('admin'), async (req, res, next) => {
     if (req.body.polyline || req.body.stops) {
       await precomputeRouteDists(route);
     }
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('route:updated', route);
+      triggerRouteSimulation(route._id, io).catch(err => {
+        console.warn('Simulation trigger error on route update:', err.message);
+      });
+    }
+
     res.json(route);
   } catch (err) {
     next(err);
@@ -115,6 +133,15 @@ router.delete('/:id', verifyJWT, requireRole('admin'), async (req, res, next) =>
   try {
     const route = await Route.findByIdAndDelete(req.params.id);
     if (!route) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('route:deleted', { routeId: req.params.id });
+      triggerRouteSimulation(req.params.id, io).catch(err => {
+        console.warn('Simulation trigger error on route delete:', err.message);
+      });
+    }
+
     res.json({ message: 'Route deleted' });
   } catch (err) {
     next(err);
@@ -153,6 +180,15 @@ router.post('/:id/build-polyline', verifyJWT, requireRole('admin'), async (req, 
     }
 
     await route.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('route:updated', route);
+      triggerRouteSimulation(route._id, io).catch(err => {
+        console.warn('Simulation trigger error on polyline build:', err.message);
+      });
+    }
+
     res.json({ message: 'Polyline built', polylinePoints: polyline.length, totalDistM: route.totalDistanceM, route });
   } catch (err) {
     next(err);

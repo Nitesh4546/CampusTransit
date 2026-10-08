@@ -15,6 +15,7 @@ const envSchema = z.object({
   AI_AUTO_PUBLISH: z.string().default('false').transform(v => v === 'true'),
   OSRM_URL: z.string().default('https://router.project-osrm.org'),
   REQUIRE_DRIVER_PHOTO: z.string().default('true').transform(v => v === 'true'),
+  AUTO_SIMULATION: z.string().default('true').transform(v => v !== 'false'),
   NODE_ENV: z.string().default('development'),
 });
 

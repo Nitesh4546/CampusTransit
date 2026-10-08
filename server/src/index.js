@@ -6,6 +6,7 @@ import { env } from './config/env.js';
 import { initSockets } from './sockets/index.js';
 import { setDelayServiceIO } from './services/delay.service.js';
 import { startPhotoSweeper } from './services/driverPhoto.service.js';
+import { startAutoSimulation, stopAutoSimulation } from './services/simulation.service.js';
 import { logger } from './utils/logger.js';
 
 async function bootstrap() {
@@ -47,6 +48,9 @@ async function bootstrap() {
   // Init socket handlers
   initSockets(io);
 
+  // Start background multi-route bus simulation
+  await startAutoSimulation(io);
+
   // Start listening
   const port = parseInt(env.PORT, 10);
   httpServer.listen(port, () => {
@@ -56,10 +60,14 @@ async function bootstrap() {
   });
 
   // Graceful shutdown
-  process.on('SIGTERM', () => {
-    logger.info('SIGTERM received, shutting down...');
+  const shutdown = () => {
+    logger.info('Shutting down server...');
+    stopAutoSimulation();
     httpServer.close(() => process.exit(0));
-  });
+  };
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 bootstrap().catch(err => {

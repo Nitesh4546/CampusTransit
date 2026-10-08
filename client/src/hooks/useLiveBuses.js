@@ -45,7 +45,7 @@ export function useLiveBuses(routeIds = []) {
     };
 
     const onBusUpdate = (busLive) => {
-      if (routeIds.includes(busLive.routeId)) {
+      if (!routeIds.length || routeIds.includes(busLive.routeId)) {
         updateBus(busLive);
       }
     };

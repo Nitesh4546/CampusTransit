@@ -130,9 +130,39 @@ export default function MapPage() {
     socket.on('disconnect', onDisconnect);
     setConnected(socket.connected);
 
+    const onRouteCreated = (newRoute) => {
+      setRoutes((prev) => {
+        if (prev.some((r) => r._id === newRoute._id)) return prev;
+        return [...prev, newRoute];
+      });
+    };
+
+    const onRouteUpdated = (updatedRoute) => {
+      setRoutes((prev) => {
+        const idx = prev.findIndex((r) => r._id === updatedRoute._id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = updatedRoute;
+          return next;
+        }
+        return [...prev, updatedRoute];
+      });
+    };
+
+    const onRouteDeleted = ({ routeId }) => {
+      setRoutes((prev) => prev.filter((r) => r._id !== routeId));
+    };
+
+    socket.on('route:created', onRouteCreated);
+    socket.on('route:updated', onRouteUpdated);
+    socket.on('route:deleted', onRouteDeleted);
+
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
+      socket.off('route:created', onRouteCreated);
+      socket.off('route:updated', onRouteUpdated);
+      socket.off('route:deleted', onRouteDeleted);
     };
   }, []);
 

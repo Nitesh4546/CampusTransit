@@ -253,9 +253,17 @@ export default function LiveMap({
       })}
 
       {/* Bus markers */}
-      {buses.map((bus) => (
-        <BusMarker key={bus.tripId} bus={bus} onBusClick={onBusClick} />
-      ))}
+      {buses.map((bus) => {
+        const route = routes.find((r) => String(r._id || r.id) === String(bus.routeId));
+        return (
+          <BusMarker
+            key={bus.tripId}
+            bus={bus}
+            routeColor={route?.color}
+            onBusClick={onBusClick}
+          />
+        );
+      })}
 
       {children}
     </MapContainer>
